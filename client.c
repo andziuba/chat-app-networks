@@ -26,6 +26,45 @@ int main() {
     char message[MESSAGE_SIZE];
     int n;
 
+    // Rejestracja/logowanie
+    int choice;
+    while (1) {
+        printf("Enter '1' to register or '2' to login: ");
+        scanf("%d", &choice);
+        getchar();
+    
+        if (choice == 1) {
+            strcpy(message, "register");
+            break;  
+        } else if (choice == 2) {
+            strcpy(message, "login");
+            break; 
+        } else {
+            printf("Invalid choice.\n");
+        }
+    }
+    send(client_socket, message, strlen(message), 0);
+
+    // Podanie hasla i nazwy uzytkownika przez klienta i wyslanie ich do serwea
+    char username[50], password[50];
+    printf("Enter username: ");
+    fgets(username, sizeof(username), stdin);
+    username[strcspn(username, "\n")] = 0;
+    
+    send(client_socket, username, strlen(username), 0);
+
+    printf("Enter password: ");
+    fgets(password, sizeof(password), stdin);
+    password[strcspn(password, "\n")] = 0;
+    
+    send(client_socket, password, strlen(password), 0);
+
+    // Wiadomosc zwrotna od serwera
+    bzero(message, MESSAGE_SIZE);
+    recv(client_socket, message, sizeof(message), 0);
+    printf("Server: %s\n", message);
+
+
     while (1) {
         bzero(message, MESSAGE_SIZE);
         printf("Enter message: ");

@@ -7,13 +7,57 @@
 #include <arpa/inet.h>
 #include <netinet/in.h>
 #include <pthread.h>
+#include "db.h"
 
 #define MESSAGE_SIZE 2000
+
+// gcc -o server.out server.c db.c -lsqlite3 -pthread
 
 void* socket_thread(void* client_socket) {
     int socket = *(int*)client_socket;
     char buffer[MESSAGE_SIZE];
     int n;
+    char action[10], username[50], password[50];
+
+    printf("Client connected.\n");
+
+    // login/register
+    bzero(action, sizeof(action));
+    recv(socket, action, sizeof(action), 0);
+    printf("Action: %s\n", action);
+
+    // username
+    bzero(username, sizeof(username));
+    n = recv(socket, username, sizeof(username), 0);
+    if (n > 0) {
+        username[n] = '\0';
+        printf("Received username: %s\n", username);
+    }
+
+    // password
+    bzero(password, sizeof(password));
+    n = recv(socket, password, sizeof(password), 0);
+    if (n > 0) {
+        password[n] = '\0';
+        printf("Received password: %s\n", password);
+    }
+
+    // action
+    if (strcmp(action, "register") == 0) {
+        int result = register_user(username, password);
+        if (result == 0) {
+            send(socket, "Registration successful", 24, 0);
+        } else {
+            send(socket, "Registration failed", 20, 0);
+        }
+    } else if (strcmp(action, "login") == 0) {
+        int result = login_user(username, password);
+        if (result >= 0) {
+            send(socket, "Login successful", 17, 0);
+        } else {
+            send(socket, "Login failed", 12, 0);
+        }
+    }
 
     while ((n = recv(socket, buffer, sizeof(buffer), 0)) > 0) {
         printf("Received: %s\n", buffer);
@@ -27,7 +71,6 @@ void* socket_thread(void* client_socket) {
     }
 
     close(socket);
-    free(client_socket);
     return NULL;
 }
 
@@ -36,6 +79,8 @@ int main() {
     struct sockaddr_in server_addr;
     struct sockaddr_storage server_storage;
     socklen_t addr_size;
+
+    init_db();
 
     server_socket = socket(AF_INET, SOCK_STREAM, 0);
 
