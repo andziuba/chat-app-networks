@@ -1,3 +1,5 @@
+// gcc -o server.out server.c db.c -lsqlite3 -pthread
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <fcntl.h>
@@ -9,24 +11,17 @@
 #include <pthread.h>
 #include "db.h"
 
-#define MESSAGE_SIZE 2000
+#define MESSAGE_SIZE 1024
 
-// gcc -o server.out server.c db.c -lsqlite3 -pthread
-
-void* socket_thread(void* client_socket) {
-    int socket = *(int*)client_socket;
-    char buffer[MESSAGE_SIZE];
-    int n;
+void authenticate_client(int client_socket) {
     char action[10], username[50], password[50];
+    int n;
 
-    printf("Client connected.\n");
-
-    // login/register
     bzero(action, sizeof(action));
     recv(socket, action, sizeof(action), 0);
     printf("Action: %s\n", action);
 
-    // username
+    // Odbieranie nazwy uzytkownika
     bzero(username, sizeof(username));
     n = recv(socket, username, sizeof(username), 0);
     if (n > 0) {
@@ -34,7 +29,7 @@ void* socket_thread(void* client_socket) {
         printf("Received username: %s\n", username);
     }
 
-    // password
+    // Odbieranie hasla
     bzero(password, sizeof(password));
     n = recv(socket, password, sizeof(password), 0);
     if (n > 0) {
@@ -42,7 +37,7 @@ void* socket_thread(void* client_socket) {
         printf("Received password: %s\n", password);
     }
 
-    // action
+    // Przeprowadzenie logowania lub rejestracji na bazie danych
     if (strcmp(action, "register") == 0) {
         int result = register_user(username, password);
         if (result == 0) {
@@ -58,6 +53,17 @@ void* socket_thread(void* client_socket) {
             send(socket, "Login failed", 12, 0);
         }
     }
+
+}
+
+void* socket_thread(void* client_socket) {
+    int socket = *(int*)client_socket;
+    char buffer[MESSAGE_SIZE];
+    int n;
+
+    printf("Client connected.\n");
+
+    authenticate_client(socket);    
 
     while ((n = recv(socket, buffer, sizeof(buffer), 0)) > 0) {
         printf("Received: %s\n", buffer);
@@ -80,6 +86,7 @@ int main() {
     struct sockaddr_storage server_storage;
     socklen_t addr_size;
 
+    // Inicjalizacja bazy danych
     init_db();
 
     server_socket = socket(AF_INET, SOCK_STREAM, 0);
