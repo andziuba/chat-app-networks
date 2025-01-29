@@ -13,8 +13,12 @@
 #define MESSAGE_SIZE 1024
 #define MAX_CLIENTS 10
 
-int clients[MAX_CLIENTS];
-char *client_usernames[MAX_CLIENTS];
+typedef struct {
+    int socket;
+    char *username;
+} Client;
+
+Client clients[MAX_CLIENTS];
 int client_count = 0;
 pthread_mutex_t clients_mutex = PTHREAD_MUTEX_INITIALIZER;
 
@@ -23,7 +27,7 @@ void broadcast_user_list() {
     pthread_mutex_lock(&clients_mutex);
 
     for (int i = 0; i < client_count; i++) {
-        strcat(user_list, client_usernames[i]);
+        strcat(user_list, clients[i].username);
         if (i < client_count - 1) {
             strcat(user_list, ", ");
         }
@@ -32,18 +36,17 @@ void broadcast_user_list() {
     strcat(user_list, "\n");
 
     for (int i = 0; i < client_count; i++) {
-        send(clients[i], user_list, strlen(user_list), 0);
+        send(clients[i].socket, user_list, strlen(user_list), 0);
     }
 
     pthread_mutex_unlock(&clients_mutex);
 }
 
-
 void broadcast_message(const char *message, int sender_socket) {
     pthread_mutex_lock(&clients_mutex);
     for (int i = 0; i < client_count; i++) {
-        if (clients[i] != sender_socket) {
-            if (send(clients[i], message, strlen(message), 0) < 0) {
+        if (clients[i].socket != sender_socket) {
+            if (send(clients[i].socket, message, strlen(message), 0) < 0) {
                 perror("Failed to send message");
             }
         }
@@ -54,14 +57,13 @@ void broadcast_message(const char *message, int sender_socket) {
 void send_message_to_user(const char *username, const char *message) {
     pthread_mutex_lock(&clients_mutex);
     for (int i = 0; i < client_count; i++) {
-        if (strcmp(client_usernames[i], username) == 0) {
-            send(clients[i], message, strlen(message), 0);
+        if (strcmp(clients[i].username, username) == 0) {
+            send(clients[i].socket, message, strlen(message), 0);
             break;
         }
     }
     pthread_mutex_unlock(&clients_mutex);
 }
-
 
 bool authenticate_client(int client_socket, char *action, char *username, char *password) {
     if (strcmp(action, "register") == 0) {
@@ -78,7 +80,6 @@ void* handle_client(void* client_socket) {
     char action[10], username[50], password[50];
     int n;
 
-    // Odbieranie akcji
     bzero(action, sizeof(action));
     n = recv(socket, action, sizeof(action) - 1, 0);
     if (n <= 0) {
@@ -87,9 +88,7 @@ void* handle_client(void* client_socket) {
         return NULL;
     }
     action[n] = '\0';
-    printf("Action: %s\n", action);
     
-    // Odbieranie nazwy użytkownika
     bzero(username, sizeof(username));
     n = recv(socket, username, sizeof(username) - 1, 0);
     if (n <= 0) {
@@ -98,9 +97,7 @@ void* handle_client(void* client_socket) {
         return NULL;
     }
     username[n] = '\0';
-    printf("Received username: %s\n", username);
 
-    // Odbieranie hasła
     bzero(password, sizeof(password));
     n = recv(socket, password, sizeof(password) - 1, 0);
     if (n <= 0) {
@@ -109,49 +106,37 @@ void* handle_client(void* client_socket) {
         return NULL;
     }
     password[n] = '\0';
-    printf("Received password: %s\n", password);
     
-    // Autoryzacja klienta
     if (authenticate_client(socket, action, username, password)) {
         send(socket, "Authentication successful", 25, 0);
-
-        // Dodaj klienta do listy aktywnych klientów
         pthread_mutex_lock(&clients_mutex);
-        clients[client_count] = socket;
-        client_usernames[client_count] = strdup(username);
+        clients[client_count].socket = socket;
+        clients[client_count].username = strdup(username);
         client_count++;
         pthread_mutex_unlock(&clients_mutex);
 
         broadcast_user_list();
 
-        // Komunikacja
         while ((n = recv(socket, buffer, sizeof(buffer), 0)) > 0) {
-            buffer[n] = '\0'; 
-            printf("Received: %s\n", buffer);
+            buffer[n] = '\0';
+            char recipient[50], message[MESSAGE_SIZE];
             
-
-            char recipient[50];
-            char message[MESSAGE_SIZE];
-        
-        // Przykładowy format: "/msg <username> <message>"
-        if (sscanf(buffer, "/msg %s %[^\n]", recipient, message) == 2) {
-            char full_message[MESSAGE_SIZE];
-            snprintf(full_message, sizeof(full_message), "%s (private): %s", username, message);
-            send_message_to_user(recipient, full_message);
-        } else {
-            // Broadcast message if not a private message
-            char formatted_message[MESSAGE_SIZE];
-            snprintf(formatted_message, sizeof(formatted_message), "%s: %s", username, buffer);
-            broadcast_message(formatted_message, socket);
-        }
+            if (sscanf(buffer, "/msg %s %[^\n]", recipient, message) == 2) {
+                char full_message[MESSAGE_SIZE];
+                snprintf(full_message, sizeof(full_message), "%s (private): %s", username, message);
+                send_message_to_user(recipient, full_message);
+            } else {
+                char formatted_message[MESSAGE_SIZE];
+                snprintf(formatted_message, sizeof(formatted_message), "%s: %s", username, buffer);
+                broadcast_message(formatted_message, socket);
+            }
         }
 
-        // Usuwanie klienta po rozłączeniu
         pthread_mutex_lock(&clients_mutex);
         for (int i = 0; i < client_count; i++) {
-            if (clients[i] == socket) {
-                clients[i] = clients[--client_count]; 
-                free(client_usernames[i]); 
+            if (clients[i].socket == socket) {
+                free(clients[i].username);
+                clients[i] = clients[--client_count];
                 break;
             }
         }
@@ -174,7 +159,6 @@ int main() {
     socklen_t addr_size;
     pthread_t thread_id;
 
-    // Inicjalizacja bazy danych
     init_db();
 
     server_socket = socket(AF_INET, SOCK_STREAM, 0);
