@@ -18,6 +18,27 @@ char *client_usernames[MAX_CLIENTS];
 int client_count = 0;
 pthread_mutex_t clients_mutex = PTHREAD_MUTEX_INITIALIZER;
 
+void broadcast_user_list() {
+    char user_list[MESSAGE_SIZE] = "Users online: ";
+    pthread_mutex_lock(&clients_mutex);
+
+    for (int i = 0; i < client_count; i++) {
+        strcat(user_list, client_usernames[i]);
+        if (i < client_count - 1) {
+            strcat(user_list, ", ");
+        }
+    }
+
+    strcat(user_list, "\n");
+
+    for (int i = 0; i < client_count; i++) {
+        send(clients[i], user_list, strlen(user_list), 0);
+    }
+
+    pthread_mutex_unlock(&clients_mutex);
+}
+
+
 void broadcast_message(const char *message, int sender_socket) {
     pthread_mutex_lock(&clients_mutex);
     for (int i = 0; i < client_count; i++) {
@@ -101,6 +122,8 @@ void* handle_client(void* client_socket) {
         client_count++;
         pthread_mutex_unlock(&clients_mutex);
 
+        broadcast_user_list();
+
         // Komunikacja
         while ((n = recv(socket, buffer, sizeof(buffer), 0)) > 0) {
             buffer[n] = '\0'; 
@@ -133,6 +156,8 @@ void* handle_client(void* client_socket) {
             }
         }
         pthread_mutex_unlock(&clients_mutex);
+
+        broadcast_user_list();
         close(socket);
     } else {
         send(socket, "Authentication failed", 21, 0);

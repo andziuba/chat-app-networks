@@ -6,6 +6,7 @@ from PyQt5.QtCore import pyqtSignal, QObject
 
 class ChatClient(QObject):
     message_received = pyqtSignal(str)
+    user_list_updated = pyqtSignal(str)
 
     def __init__(self, host='127.0.0.1', port=1100):
         super().__init__()
@@ -42,9 +43,10 @@ class ChatClient(QObject):
         while self.running:
             try:
                 message = self.client_socket.recv(1024).decode('utf-8')
-                if message:
-                    print(f"Message received: {message}")  # Debug message
-                    self.message_received.emit(f"{message}")
+                if message.startswith("Users online:"):
+                    self.user_list_updated.emit(message)  # Emitujemy sygnał dla GUI
+                else:
+                    self.message_received.emit(message)
             except Exception as e:
                 print(f"Error receiving message: {e}")
                 break
@@ -111,22 +113,31 @@ class LoginRegisterWindow(QWidget):
             self.open_chat_window()
 
     def open_chat_window(self):
-        self.chat_window = ChatWindow()
-        self.chat_window.client = self.client  # Pass the same client instance
+        self.chat_window = ChatWindow(self.client)  # Przekazujemy klienta jako argument
         self.client.message_received.connect(self.chat_window.display_message)
-        self.chat_window.show()  # Show the chat window
-        self.close()  # Close the login/register window
+        self.chat_window.show()  
+        self.close()  # Zamykamy okno logowania
+
 
 class ChatWindow(QWidget):
-    def __init__(self):
+    def __init__(self, client):
         super().__init__()
+        self.client = client
         self.init_ui()
+        self.client.user_list_updated.connect(self.update_user_list)  # Teraz to działa poprawnie
+
 
     def init_ui(self):
         self.setWindowTitle("Chat Client")
         self.setGeometry(100, 100, 400, 300)
 
         self.layout = QVBoxLayout()
+
+        # Pole użytkowników online
+        self.user_list_display = QTextEdit()
+        self.user_list_display.setReadOnly(True)
+        self.user_list_display.setFixedHeight(50)  # Ograniczamy wysokość
+        self.layout.addWidget(self.user_list_display)
         
         # Wyświetlacz wiadomości
         self.text_display = QTextEdit()
@@ -135,8 +146,8 @@ class ChatWindow(QWidget):
 
         # Pole do wprowadzania nazwy użytkownika odbiorcy
         self.recipient_input = QLineEdit()
-        self.layout.addWidget(QLabel("Recipient:"))  # Etykieta dla pola odbiorcy
-        self.layout.addWidget(self.recipient_input)  # Dodanie pola do wprowadzenia odbiorcy
+        self.layout.addWidget(QLabel("Recipients (space-separated):"))  # Etykieta dla pola odbiorcy
+        self.layout.addWidget(self.recipient_input)  # Dodanie pola do wprowadzenia odbiorców
 
         # Pole do wprowadzania wiadomości
         self.entry_message = QLineEdit()
@@ -151,18 +162,23 @@ class ChatWindow(QWidget):
         # Przycisk do wysyłania wiadomości
         self.send_button = QPushButton("Send")
         self.send_button.clicked.connect(self.send_message)  # Po kliknięciu wywołuje send_message
-        self.layout.addWidget(self.send_button)
-
-        
+        self.layout.addWidget(self.send_button)      
 
         self.setLayout(self.layout)
 
     # Nowa metoda do wysyłania wiadomości prywatnych
     def send_private_message(self):
-        recipient = self.recipient_input.text()  # Odczytaj nazwę użytkownika odbiorcy
+        recipients = self.recipient_input.text()  # Odczytaj nazwy użytkowników odbiorców
         message = self.entry_message.text()  # Odczytaj treść wiadomości
-        self.client.send_message(f"/msg {recipient} {message}")  # Wyślij wiadomość w formacie "/msg"
-        self.text_display.append(f"You (to {recipient}): {message}")  # Dodaj do wyświetlacza wiadomości
+
+        # Podziel nazwy odbiorców na listę, usuwając białe znaki
+        recipient_list = [recipient.strip() for recipient in recipients.split(' ') if recipient.strip()]
+
+        for recipient in recipient_list:
+            # Wysłanie wiadomości do każdego odbiorcy z listy
+            self.client.send_message(f"/msg {recipient} {message}")  
+            self.text_display.append(f"You (to {recipient}): {message}")  # Dodaj do wyświetlacza wiadomości
+
         self.entry_message.clear()  # Wyczyść pole wiadomości
 
 
@@ -172,10 +188,12 @@ class ChatWindow(QWidget):
         self.text_display.append(f"You: {message}")
         self.entry_message.clear()
 
-
-
     def display_message(self, message):
         self.text_display.append(message)
+
+    def update_user_list(self, user_list):
+        """Aktualizuje listę zalogowanych użytkowników w oknie czatu"""
+        self.user_list_display.setText(user_list.replace("Users online: ", "Online:\n"))
     
     def closeEvent(self, event):
         self.client.close()
