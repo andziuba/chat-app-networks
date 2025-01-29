@@ -35,8 +35,9 @@ class ChatClient(QObject):
             print("Authentication failed. Please try again.")
             self.message_received.emit("Authentication failed. Please try again.")  # Emit signal for failure
         else:
+            self.current_user = username
             self.message_received.emit("Authentication successful!")  # Inform success
-            self.current_user = username  # Set current user as logged in
+           
 
     def send_message(self, message):
         if message:
@@ -119,16 +120,17 @@ class LoginRegisterWindow(QWidget):
             self.open_user_list_window()
 
     def open_user_list_window(self):
-        self.user_list_window = UserListWindow(self.client)  # Pass the client as an argument
+        self.user_list_window = UserListWindow(self.client, self.client.current_user)  # Pass the current user
         self.client.message_received.connect(self.user_list_window.display_message)
         self.client.user_list_updated.connect(self.user_list_window.update_user_list)  # Update user list in user list window
         self.user_list_window.show()
         self.close()  # Close the login window
 
 class UserListWindow(QWidget):
-    def __init__(self, client):
+    def __init__(self, client, current_user):
         super().__init__()
         self.client = client
+        self.current_user = current_user
         self.init_ui()
         self.client.user_list_updated.connect(self.update_user_list)
 
@@ -137,6 +139,10 @@ class UserListWindow(QWidget):
         self.setGeometry(100, 100, 300, 300)
 
         self.layout = QVBoxLayout()
+
+        # Display "Logged in as: username"
+        self.logged_in_label = QLabel(f"Logged in as: {self.current_user}")
+        self.layout.addWidget(self.logged_in_label)
 
         # User list display (for online users)
         self.user_list_display = QListWidget()
@@ -152,10 +158,15 @@ class UserListWindow(QWidget):
         self.setLayout(self.layout)
 
     def update_user_list(self, user_list):
-        """Update the list of online users."""
+        """Update the list of online users, excluding the current user."""
         users = user_list.replace("Users online: ", "").split(", ")
+        users = [user.strip() for user in users]
+        
         self.user_list_display.clear()
-        self.user_list_display.addItems(users)
+        
+        # Filter out the current user from the list
+        filtered_users = [user for user in users if user != self.current_user]
+        self.user_list_display.addItems(filtered_users)
 
     def on_user_selected(self):
         selected_user = self.user_list_display.currentItem().text()
@@ -218,7 +229,9 @@ class ChatWindow(QWidget):
 
     def back_to_user_list(self):
         self.client.send_message("/list")  # Assuming the server handles the '/list' command to fetch the user list
+        time.sleep(0.1)
         self.user_list_window = UserListWindow(self.client)
+        self.client.user_list_updated.connect(self.user_list_window.update_user_list)
         self.user_list_window.show()
         self.close()
 
