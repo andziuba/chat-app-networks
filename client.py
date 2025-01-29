@@ -127,24 +127,52 @@ class ChatWindow(QWidget):
         self.setGeometry(100, 100, 400, 300)
 
         self.layout = QVBoxLayout()
+        
+        # Wyświetlacz wiadomości
         self.text_display = QTextEdit()
         self.text_display.setReadOnly(True)
         self.layout.addWidget(self.text_display)
 
+        # Pole do wprowadzania nazwy użytkownika odbiorcy
+        self.recipient_input = QLineEdit()
+        self.layout.addWidget(QLabel("Recipient:"))  # Etykieta dla pola odbiorcy
+        self.layout.addWidget(self.recipient_input)  # Dodanie pola do wprowadzenia odbiorcy
+
+        # Pole do wprowadzania wiadomości
         self.entry_message = QLineEdit()
+        self.layout.addWidget(QLabel("Message:"))
         self.layout.addWidget(self.entry_message)
 
+        # Przycisk do wysyłania wiadomości prywatnej
+        self.private_send_button = QPushButton("Send Private Message")
+        self.private_send_button.clicked.connect(self.send_private_message)  # Po kliknięciu wywołuje send_private_message
+        self.layout.addWidget(self.private_send_button)
+        
+        # Przycisk do wysyłania wiadomości
         self.send_button = QPushButton("Send")
-        self.send_button.clicked.connect(self.send_message)
+        self.send_button.clicked.connect(self.send_message)  # Po kliknięciu wywołuje send_message
         self.layout.addWidget(self.send_button)
 
+        
+
         self.setLayout(self.layout)
+
+    # Nowa metoda do wysyłania wiadomości prywatnych
+    def send_private_message(self):
+        recipient = self.recipient_input.text()  # Odczytaj nazwę użytkownika odbiorcy
+        message = self.entry_message.text()  # Odczytaj treść wiadomości
+        self.client.send_message(f"/msg {recipient} {message}")  # Wyślij wiadomość w formacie "/msg"
+        self.text_display.append(f"You (to {recipient}): {message}")  # Dodaj do wyświetlacza wiadomości
+        self.entry_message.clear()  # Wyczyść pole wiadomości
+
 
     def send_message(self):
         message = self.entry_message.text()
         self.client.send_message(message)
         self.text_display.append(f"You: {message}")
         self.entry_message.clear()
+
+
 
     def display_message(self, message):
         self.text_display.append(message)

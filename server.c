@@ -30,6 +30,18 @@ void broadcast_message(const char *message, int sender_socket) {
     pthread_mutex_unlock(&clients_mutex);
 }
 
+void send_message_to_user(const char *username, const char *message) {
+    pthread_mutex_lock(&clients_mutex);
+    for (int i = 0; i < client_count; i++) {
+        if (strcmp(client_usernames[i], username) == 0) {
+            send(clients[i], message, strlen(message), 0);
+            break;
+        }
+    }
+    pthread_mutex_unlock(&clients_mutex);
+}
+
+
 bool authenticate_client(int client_socket, char *action, char *username, char *password) {
     if (strcmp(action, "register") == 0) {
         return register_user(username, password) == 0; 
@@ -93,9 +105,22 @@ void* handle_client(void* client_socket) {
         while ((n = recv(socket, buffer, sizeof(buffer), 0)) > 0) {
             buffer[n] = '\0'; 
             printf("Received: %s\n", buffer);
+            
+
+            char recipient[50];
             char message[MESSAGE_SIZE];
-            snprintf(message, sizeof(message), "%s: %s", username, buffer);
-            broadcast_message(message, socket);
+        
+        // Przykładowy format: "/msg <username> <message>"
+        if (sscanf(buffer, "/msg %s %[^\n]", recipient, message) == 2) {
+            char full_message[MESSAGE_SIZE];
+            snprintf(full_message, sizeof(full_message), "%s (private): %s", username, message);
+            send_message_to_user(recipient, full_message);
+        } else {
+            // Broadcast message if not a private message
+            char formatted_message[MESSAGE_SIZE];
+            snprintf(formatted_message, sizeof(formatted_message), "%s: %s", username, buffer);
+            broadcast_message(formatted_message, socket);
+        }
         }
 
         // Usuwanie klienta po rozłączeniu
