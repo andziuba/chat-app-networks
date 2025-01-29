@@ -180,6 +180,8 @@ class ChatWindow(QWidget):
         self.selected_user = selected_user
         self.init_ui()
 
+        self.client.message_received.connect(self.display_message)
+
     def init_ui(self):
         self.setWindowTitle(f"Chat with {self.selected_user}")
         self.setGeometry(100, 100, 400, 300)

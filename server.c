@@ -126,7 +126,7 @@ void* handle_client(void* client_socket) {
                 broadcast_user_list();
             } else if (sscanf(buffer, "/msg %s %[^\n]", recipient, message) == 2) {
                 char full_message[MESSAGE_SIZE];
-                snprintf(full_message, sizeof(full_message), "%s (private): %s", username, message);
+                snprintf(full_message, sizeof(full_message), "%s: %s", username, message);
                 send_message_to_user(recipient, full_message);
             } else {
                 char formatted_message[MESSAGE_SIZE];
