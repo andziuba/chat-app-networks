@@ -1,7 +1,7 @@
 import sys
 import socket
 import threading
-from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QTextEdit, QLineEdit, QPushButton, QLabel
+from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QTextEdit, QLineEdit, QPushButton, QLabel, QListWidget
 from PyQt5.QtCore import pyqtSignal, QObject
 
 class ChatClient(QObject):
@@ -13,23 +13,25 @@ class ChatClient(QObject):
         self.client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.client_socket.connect((host, port))
         self.running = True
+        self.current_user = None  # Track the currently logged-in user
         threading.Thread(target=self.receive_messages, daemon=True).start()
 
     def authenticate(self, action, username, password):
         print(f"Sending action: {action}")
-        self.send_message(action)  # Wysyłamy akcję (login/register)
+        self.send_message(action)  # Send action (login/register)
         print(f"Sending username: {username}")
-        self.send_message(username)  # Wysyłamy nazwę użytkownika
+        self.send_message(username)  # Send username
         print(f"Sending password: {password}")
-        self.send_message(password)  # Wysyłamy hasło
+        self.send_message(password)  # Send password
 
-        # Odbieranie odpowiedzi od serwera
+        # Receiving response from server
         response = self.client_socket.recv(1024).decode('utf-8')
         if "Authentication failed" in response:
             print("Authentication failed. Please try again.")
-            self.message_received.emit("Authentication failed. Please try again.")  # Emituj komunikat do GUI
+            self.message_received.emit("Authentication failed. Please try again.")  # Emit signal for failure
         else:
-            self.message_received.emit("Authentication successful!")  # Informuj o sukcesie
+            self.message_received.emit("Authentication successful!")  # Inform success
+            self.current_user = username  # Set current user as logged in
 
     def send_message(self, message):
         if message:
@@ -37,16 +39,16 @@ class ChatClient(QObject):
                 self.client_socket.sendall(message.encode('utf-8'))
             except BrokenPipeError:
                 print("Connection closed by the server. Unable to send message.")
-                self.running = False  # Zatrzymaj odbieranie wiadomości
+                self.running = False  # Stop receiving messages if connection is lost
 
     def receive_messages(self):
         while self.running:
             try:
                 message = self.client_socket.recv(1024).decode('utf-8')
                 if message.startswith("Users online:"):
-                    self.user_list_updated.emit(message)  # Emitujemy sygnał dla GUI
+                    self.user_list_updated.emit(message)  # Emit updated user list
                 else:
-                    self.message_received.emit(message)
+                    self.message_received.emit(message)  # Emit regular message
             except Exception as e:
                 print(f"Error receiving message: {e}")
                 break
@@ -108,93 +110,114 @@ class LoginRegisterWindow(QWidget):
     def display_message(self, message):
         self.message_display.append(message)
 
-        # Check for successful login or registration and open ChatWindow
         if "successful" in message:  # Assuming server sends "Login successful" or "Registration successful"
-            self.open_chat_window()
+            self.open_user_list_window()
 
-    def open_chat_window(self):
-        self.chat_window = ChatWindow(self.client)  # Przekazujemy klienta jako argument
-        self.client.message_received.connect(self.chat_window.display_message)
-        self.chat_window.show()  
-        self.close()  # Zamykamy okno logowania
+    def open_user_list_window(self):
+        self.user_list_window = UserListWindow(self.client)  # Pass the client as an argument
+        self.client.message_received.connect(self.user_list_window.display_message)
+        self.client.user_list_updated.connect(self.user_list_window.update_user_list)  # Update user list in user list window
+        self.user_list_window.show()
+        self.close()  # Close the login window
 
-
-class ChatWindow(QWidget):
+class UserListWindow(QWidget):
     def __init__(self, client):
         super().__init__()
         self.client = client
         self.init_ui()
-        self.client.user_list_updated.connect(self.update_user_list)  # Teraz to działa poprawnie
-
+        self.client.user_list_updated.connect(self.update_user_list)
 
     def init_ui(self):
-        self.setWindowTitle("Chat Client")
+        self.setWindowTitle("Users Online")
+        self.setGeometry(100, 100, 300, 300)
+
+        self.layout = QVBoxLayout()
+
+        # User list display (for online users)
+        self.user_list_display = QListWidget()
+        self.user_list_display.clicked.connect(self.on_user_selected)  # Connect click event for user selection
+        self.layout.addWidget(QLabel("Users Online:"))
+        self.layout.addWidget(self.user_list_display)
+
+        # Back to the login window button
+        self.back_button = QPushButton("Back to Login")
+        self.back_button.clicked.connect(self.back_to_login)
+        self.layout.addWidget(self.back_button)
+
+        self.setLayout(self.layout)
+
+    def update_user_list(self, user_list):
+        """Update the list of online users."""
+        users = user_list.replace("Users online: ", "").split(", ")
+        self.user_list_display.clear()
+        self.user_list_display.addItems(users)
+
+    def on_user_selected(self):
+        selected_user = self.user_list_display.currentItem().text()
+        self.chat_window = ChatWindow(self.client, selected_user)
+        self.chat_window.show()
+        self.close()  # Close the user list window
+
+    def back_to_login(self):
+        self.client.close()
+        self.login_window = LoginRegisterWindow()
+        self.login_window.show()
+        self.close()  # Close the user list window
+
+    def display_message(self, message):
+        """Display general messages (like login success or errors)."""
+        pass  # This is handled in other windows
+
+class ChatWindow(QWidget):
+    def __init__(self, client, selected_user):
+        super().__init__()
+        self.client = client
+        self.selected_user = selected_user
+        self.init_ui()
+
+    def init_ui(self):
+        self.setWindowTitle(f"Chat with {self.selected_user}")
         self.setGeometry(100, 100, 400, 300)
 
         self.layout = QVBoxLayout()
 
-        # Pole użytkowników online
-        self.user_list_display = QTextEdit()
-        self.user_list_display.setReadOnly(True)
-        self.user_list_display.setFixedHeight(50)  # Ograniczamy wysokość
-        self.layout.addWidget(self.user_list_display)
-        
-        # Wyświetlacz wiadomości
+        # Message display
         self.text_display = QTextEdit()
         self.text_display.setReadOnly(True)
         self.layout.addWidget(self.text_display)
 
-        # Pole do wprowadzania nazwy użytkownika odbiorcy
-        self.recipient_input = QLineEdit()
-        self.layout.addWidget(QLabel("Recipients (space-separated):"))  # Etykieta dla pola odbiorcy
-        self.layout.addWidget(self.recipient_input)  # Dodanie pola do wprowadzenia odbiorców
-
-        # Pole do wprowadzania wiadomości
+        # Message input field
         self.entry_message = QLineEdit()
         self.layout.addWidget(QLabel("Message:"))
         self.layout.addWidget(self.entry_message)
 
-        # Przycisk do wysyłania wiadomości prywatnej
-        self.private_send_button = QPushButton("Send Private Message")
-        self.private_send_button.clicked.connect(self.send_private_message)  # Po kliknięciu wywołuje send_private_message
-        self.layout.addWidget(self.private_send_button)
-        
-        # Przycisk do wysyłania wiadomości
+        # Send button
         self.send_button = QPushButton("Send")
-        self.send_button.clicked.connect(self.send_message)  # Po kliknięciu wywołuje send_message
-        self.layout.addWidget(self.send_button)      
+        self.send_button.clicked.connect(self.send_message)
+        self.layout.addWidget(self.send_button)
+
+        # Back button to return to the user list screen
+        self.back_button = QPushButton("Back to Users List")
+        self.back_button.clicked.connect(self.back_to_user_list)
+        self.layout.addWidget(self.back_button)
 
         self.setLayout(self.layout)
 
-    # Nowa metoda do wysyłania wiadomości prywatnych
-    def send_private_message(self):
-        recipients = self.recipient_input.text()  # Odczytaj nazwy użytkowników odbiorców
-        message = self.entry_message.text()  # Odczytaj treść wiadomości
-
-        # Podziel nazwy odbiorców na listę, usuwając białe znaki
-        recipient_list = [recipient.strip() for recipient in recipients.split(' ') if recipient.strip()]
-
-        for recipient in recipient_list:
-            # Wysłanie wiadomości do każdego odbiorcy z listy
-            self.client.send_message(f"/msg {recipient} {message}")  
-            self.text_display.append(f"You (to {recipient}): {message}")  # Dodaj do wyświetlacza wiadomości
-
-        self.entry_message.clear()  # Wyczyść pole wiadomości
-
-
     def send_message(self):
         message = self.entry_message.text()
-        self.client.send_message(message)
+        self.client.send_message(f"/msg {self.selected_user} {message}")
         self.text_display.append(f"You: {message}")
         self.entry_message.clear()
+
+    def back_to_user_list(self):
+        self.client.send_message("/list")  # Assuming the server handles the '/list' command to fetch the user list
+        self.user_list_window = UserListWindow(self.client)
+        self.user_list_window.show()
+        self.close()
 
     def display_message(self, message):
         self.text_display.append(message)
 
-    def update_user_list(self, user_list):
-        """Aktualizuje listę zalogowanych użytkowników w oknie czatu"""
-        self.user_list_display.setText(user_list.replace("Users online: ", "Online:\n"))
-    
     def closeEvent(self, event):
         self.client.close()
         event.accept()
