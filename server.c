@@ -115,13 +115,16 @@ void* handle_client(void* client_socket) {
         client_count++;
         pthread_mutex_unlock(&clients_mutex);
 
+        sleep(1);
         broadcast_user_list();
 
         while ((n = recv(socket, buffer, sizeof(buffer), 0)) > 0) {
             buffer[n] = '\0';
             char recipient[50], message[MESSAGE_SIZE];
             
-            if (sscanf(buffer, "/msg %s %[^\n]", recipient, message) == 2) {
+            if (strcmp(buffer, "/list") == 0) {
+                broadcast_user_list();
+            } else if (sscanf(buffer, "/msg %s %[^\n]", recipient, message) == 2) {
                 char full_message[MESSAGE_SIZE];
                 snprintf(full_message, sizeof(full_message), "%s (private): %s", username, message);
                 send_message_to_user(recipient, full_message);

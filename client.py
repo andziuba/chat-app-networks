@@ -1,6 +1,7 @@
 import sys
 import socket
 import threading
+import time
 from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QTextEdit, QLineEdit, QPushButton, QLabel, QListWidget
 from PyQt5.QtCore import pyqtSignal, QObject
 
@@ -19,8 +20,12 @@ class ChatClient(QObject):
     def authenticate(self, action, username, password):
         print(f"Sending action: {action}")
         self.send_message(action)  # Send action (login/register)
+        time.sleep(0.1)
+
         print(f"Sending username: {username}")
         self.send_message(username)  # Send username
+        time.sleep(0.1)
+        
         print(f"Sending password: {password}")
         self.send_message(password)  # Send password
 
