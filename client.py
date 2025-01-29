@@ -44,7 +44,7 @@ class ChatClient(QObject):
                 message = self.client_socket.recv(1024).decode('utf-8')
                 if message:
                     print(f"Message received: {message}")  # Debug message
-                    self.message_received.emit(f"Server: {message}")
+                    self.message_received.emit(f"{message}")
             except Exception as e:
                 print(f"Error receiving message: {e}")
                 break
@@ -113,6 +113,7 @@ class LoginRegisterWindow(QWidget):
     def open_chat_window(self):
         self.chat_window = ChatWindow()
         self.chat_window.client = self.client  # Pass the same client instance
+        self.client.message_received.connect(self.chat_window.display_message)
         self.chat_window.show()  # Show the chat window
         self.close()  # Close the login/register window
 
