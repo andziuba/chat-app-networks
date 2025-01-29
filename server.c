@@ -47,7 +47,7 @@ void* handle_client(void* client_socket) {
 
     // Odbieranie akcji
     bzero(action, sizeof(action));
-    n = recv(socket, action, sizeof(action), 0);
+    n = recv(socket, action, sizeof(action) - 1, 0);
     if (n <= 0) {
         perror("Error receiving action");
         close(socket);
@@ -58,7 +58,7 @@ void* handle_client(void* client_socket) {
     
     // Odbieranie nazwy użytkownika
     bzero(username, sizeof(username));
-    n = recv(socket, username, sizeof(username), 0);
+    n = recv(socket, username, sizeof(username) - 1, 0);
     if (n <= 0) {
         perror("Error receiving username");
         close(socket);
@@ -69,7 +69,7 @@ void* handle_client(void* client_socket) {
 
     // Odbieranie hasła
     bzero(password, sizeof(password));
-    n = recv(socket, password, sizeof(password), 0);
+    n = recv(socket, password, sizeof(password) - 1, 0);
     if (n <= 0) {
         perror("Error receiving password");
         close(socket);

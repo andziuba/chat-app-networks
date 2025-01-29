@@ -6,6 +6,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+extern sqlite3 *db;
+
 void init_db();
 
 int register_user(const char *username, const char *password);
