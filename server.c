@@ -54,13 +54,16 @@ void broadcast_message(const char *message, int sender_socket) {
     pthread_mutex_unlock(&clients_mutex);
 }
 
-void send_message_to_user(const char *username, const char *message) {
+void send_message_to_users(char *usernames, const char *message) {
     pthread_mutex_lock(&clients_mutex);
-    for (int i = 0; i < client_count; i++) {
-        if (strcmp(clients[i].username, username) == 0) {
-            send(clients[i].socket, message, strlen(message), 0);
-            break;
+    char *user = strtok(usernames, " ");
+    while (user != NULL) {
+        for (int i = 0; i < client_count; i++) {
+            if (strcmp(clients[i].username, user) == 0) {
+                send(clients[i].socket, message, strlen(message), 0);
+            }
         }
+        user = strtok(NULL, " ");
     }
     pthread_mutex_unlock(&clients_mutex);
 }
@@ -124,10 +127,10 @@ void* handle_client(void* client_socket) {
             
             if (strcmp(buffer, "/list") == 0) {
                 broadcast_user_list();
-            } else if (sscanf(buffer, "/msg %s %[^\n]", recipient, message) == 2) {
+            } else if (sscanf(buffer, "/msg %199[^ ] %199[^\n]", recipients, message) == 2) {
                 char full_message[MESSAGE_SIZE];
                 snprintf(full_message, sizeof(full_message), "%s: %s", username, message);
-                send_message_to_user(recipient, full_message);
+                send_message_to_users(recipients, full_message);
             } else {
                 char formatted_message[MESSAGE_SIZE];
                 snprintf(formatted_message, sizeof(formatted_message), "%s: %s", username, buffer);

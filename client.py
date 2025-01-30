@@ -146,9 +146,13 @@ class UserListWindow(QWidget):
 
         # User list display (for online users)
         self.user_list_display = QListWidget()
-        self.user_list_display.clicked.connect(self.on_user_selected)  # Connect click event for user selection
+        self.user_list_display.setSelectionMode(QListWidget.MultiSelection)
         self.layout.addWidget(QLabel("Users Online:"))
         self.layout.addWidget(self.user_list_display)
+
+        self.start_chat_button = QPushButton("Start Chat")
+        self.start_chat_button.clicked.connect(self.start_chat)
+        self.layout.addWidget(self.start_chat_button)
 
         # Back to the login window button
         self.back_button = QPushButton("Back to Login")
@@ -156,6 +160,13 @@ class UserListWindow(QWidget):
         self.layout.addWidget(self.back_button)
 
         self.setLayout(self.layout)
+
+    def start_chat(self):
+        selected_users = [item.text() for item in self.user_list_display.selectedItems()]
+        if selected_users:
+            self.chat_window = ChatWindow(self.client, selected_users)
+            self.chat_window.show()
+            self.close()
 
     def update_user_list(self, user_list):
         """Update the list of online users, excluding the current user."""
@@ -185,16 +196,16 @@ class UserListWindow(QWidget):
         pass  # This is handled in other windows
 
 class ChatWindow(QWidget):
-    def __init__(self, client, selected_user):
+    def __init__(self, client, selected_users):
         super().__init__()
         self.client = client
-        self.selected_user = selected_user
+        self.selected_users = selected_users  # Use 'selected_users' instead of 'selected_user'
         self.init_ui()
 
         self.client.message_received.connect(self.display_message)
 
     def init_ui(self):
-        self.setWindowTitle(f"Chat with {self.selected_user}")
+        self.setWindowTitle(f"Chat with {', '.join(self.selected_users)}")  # Using 'self.selected_users'
         self.setGeometry(100, 100, 400, 300)
 
         self.layout = QVBoxLayout()
@@ -223,14 +234,15 @@ class ChatWindow(QWidget):
 
     def send_message(self):
         message = self.entry_message.text()
-        self.client.send_message(f"/msg {self.selected_user} {message}")
+        recipients = " ".join(self.selected_users)  # Use 'self.selected_users'
+        self.client.send_message(f"/msg {recipients} {message}")
         self.text_display.append(f"You: {message}")
         self.entry_message.clear()
 
     def back_to_user_list(self):
-        self.client.send_message("/list")  # Assuming the server handles the '/list' command to fetch the user list
+        self.client.send_message("/list")
         time.sleep(0.1)
-        self.user_list_window = UserListWindow(self.client)
+        self.user_list_window = UserListWindow(self.client, self.client.current_user)
         self.client.user_list_updated.connect(self.user_list_window.update_user_list)
         self.user_list_window.show()
         self.close()
@@ -241,6 +253,7 @@ class ChatWindow(QWidget):
     def closeEvent(self, event):
         self.client.close()
         event.accept()
+
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
