@@ -191,6 +191,8 @@ class UserListWindow(QWidget):
         #self.close()  # Close the user list window
 
     def back_to_login(self):
+        self.client.send_message("/logout")
+        time.sleep(0.1)
         self.client.close()
         self.login_window = LoginRegisterWindow()
         self.login_window.show()
