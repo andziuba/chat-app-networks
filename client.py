@@ -50,13 +50,21 @@ class ChatClient(QObject):
     def receive_messages(self):
         while self.running:
             try:
+                self.client_socket.settimeout(5)  # Set a timeout to prevent blocking
                 message = self.client_socket.recv(1024).decode('utf-8')
+                if not message:  # Server closed the connection
+                    print("Server closed the connection.")
+                    self.running = False
+                    break
                 if message.startswith("Users online:"):
-                    self.user_list_updated.emit(message)  # Emit updated user list
+                    self.user_list_updated.emit(message)
                 else:
-                    self.message_received.emit(message)  # Emit regular message
+                    self.message_received.emit(message)
+            except socket.timeout:
+                continue  # Continue the loop if no data is received
             except Exception as e:
                 print(f"Error receiving message: {e}")
+                self.running = False
                 break
 
     def close(self):
