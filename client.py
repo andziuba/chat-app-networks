@@ -192,7 +192,6 @@ class UserListWindow(QWidget):
 
     def back_to_login(self):
         self.client.send_message("/logout")
-        time.sleep(0.1)
         self.client.close()
         self.login_window = LoginRegisterWindow()
         self.login_window.show()
@@ -232,11 +231,6 @@ class ChatWindow(QWidget):
         self.send_button.clicked.connect(self.send_message)
         self.layout.addWidget(self.send_button)
 
-        # Back button to return to the user list screen
-        self.back_button = QPushButton("Back to Users List")
-        self.back_button.clicked.connect(self.back_to_user_list)
-        self.layout.addWidget(self.back_button)
-
         self.setLayout(self.layout)
 
     def send_message(self):
@@ -246,21 +240,12 @@ class ChatWindow(QWidget):
         self.text_display.append(f"You: {message}")
         self.entry_message.clear()
 
-    def back_to_user_list(self):
-        self.client.send_message("/list")
-        time.sleep(0.1)
-        self.user_list_window = UserListWindow(self.client, self.client.current_user)
-        self.client.user_list_updated.connect(self.user_list_window.update_user_list)
-        self.user_list_window.show()
-        self.close()
-
     def display_message(self, message):
         self.text_display.append(message)
 
     def closeEvent(self, event):
         self.client.close()
         event.accept()
-
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
