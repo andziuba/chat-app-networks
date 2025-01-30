@@ -156,7 +156,7 @@ class UserListWindow(QWidget):
         self.layout.addWidget(self.start_chat_button)
 
         # Back to the login window button
-        self.back_button = QPushButton("Back to Login")
+        self.back_button = QPushButton("Logout")
         self.back_button.clicked.connect(self.back_to_login)
         self.layout.addWidget(self.back_button)
 
@@ -165,9 +165,9 @@ class UserListWindow(QWidget):
     def start_chat(self):
         selected_users = [item.text() for item in self.user_list_display.selectedItems()]
         if selected_users:
-            chat_key = tuple(sorted(selected_users))  # Unique key for chat windows
+            chat_key = tuple(sorted([self.current_user] + selected_users))
             if chat_key not in self.chat_windows:
-                chat_window = ChatWindow(self.client, selected_users)
+                chat_window = ChatWindow(self.client, selected_users, self.current_user)  # Pass current_user
                 self.chat_windows[chat_key] = chat_window
                 chat_window.show()
             else:
@@ -202,13 +202,20 @@ class UserListWindow(QWidget):
         pass  # This is handled in other windows
 
 class ChatWindow(QWidget):
-    def __init__(self, client, selected_users):
+    def __init__(self, client, selected_users, current_user):
         super().__init__()
         self.client = client
         self.selected_users = selected_users  # Use 'selected_users' instead of 'selected_user'
+        self.current_user = current_user
+        self.chat_key = self.generate_chat_key(selected_users)
         self.init_ui()
 
         self.client.message_received.connect(self.display_message)
+
+    def generate_chat_key(self, selected_users):
+        """Generate a unique key for the chat based on the participants."""
+        participants = sorted([self.current_user] + selected_users)
+        return tuple(participants)
 
     def init_ui(self):
         self.setWindowTitle(f"Chat with {', '.join(self.selected_users)}")  # Using 'self.selected_users'
@@ -240,8 +247,31 @@ class ChatWindow(QWidget):
         self.text_display.append(f"You: {message}")
         self.entry_message.clear()
 
+    def is_message_for_this_chat(self, message):
+        """Sprawdza, czy wiadomość jest przeznaczona dla tego czatu."""
+        if ":" in message:
+            sender, content = message.split(":", 1)
+            sender = sender.strip()
+
+            if "to" in content:
+                # Obsługa wiadomości w formacie "sender to recipient1 recipient2: message"
+                recipients_part = content.split("to", 1)[1].split(":", 1)[0].strip()
+                recipients = recipients_part.split()
+            else:
+                # Obsługa wiadomości bez "to" (np. prywatne wiadomości)
+                recipients = [self.current_user]
+
+            # Tworzymy klucz czatu i sprawdzamy, czy pasuje do tego okna
+            participants = sorted([sender] + recipients)
+            return tuple(participants) == self.chat_key
+
+        return False
+
     def display_message(self, message):
-        self.text_display.append(message)
+        """Wyświetla tylko wiadomości przeznaczone dla tego okna czatu."""
+        if self.is_message_for_this_chat(message):
+            self.text_display.append(message)
+
 
     def closeEvent(self, event):
         self.client.close()
