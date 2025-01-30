@@ -45,16 +45,13 @@ void broadcast_user_list() {
 }
 
 // Funckja wysylajaca wiadomosc do okreslonych uzytkownikow
-void send_message_to_users(char *usernames, const char *message) {
+void send_message_to_users(char *username, const char *message) {
     pthread_mutex_lock(&clients_mutex);
-    char *user = strtok(usernames, " ");
-    while (user != NULL) {
-        for (int i = 0; i < client_count; i++) {
-            if (strcmp(clients[i].username, user) == 0) {
-                send(clients[i].socket, message, strlen(message), 0);
-            }
+    for (int i = 0; i < client_count; i++) {
+        if (strcmp(clients[i].username, username) == 0) {
+            printf("username: %s",clients[i].username);
+            send(clients[i].socket, message, strlen(message), 0);
         }
-        user = strtok(NULL, " ");
     }
     pthread_mutex_unlock(&clients_mutex);
 }
@@ -64,6 +61,15 @@ bool authenticate_client(int client_socket, char *action, char *username, char *
     if (strcmp(action, "register") == 0) {
         return register_user(username, password) == 0; 
     } else if (strcmp(action, "login") == 0) {
+        pthread_mutex_lock(&clients_mutex);
+        for (int i = 0; i < client_count; i++) {
+            if (strcmp(clients[i].username, username) == 0) {
+                pthread_mutex_unlock(&clients_mutex);
+                return false;
+            }
+        }
+        pthread_mutex_unlock(&clients_mutex);
+
         return login_user(username, password) >= 0; 
     }
     return false;

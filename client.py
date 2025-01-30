@@ -265,14 +265,12 @@ class ChatWindow(QWidget):
             sender, content = message.split(":", 1)
             sender = sender.strip()
 
-            if "to" in content:
-                recipients_part = content.split("to", 1)[1].split(":", 1)[0].strip()
-                recipients = recipients_part.split()
-            else:
-                recipients = [self.current_user]
-
-            participants = sorted([sender] + recipients)
-            return tuple(participants) == self.chat_key
+            # Zakładamy, że pierwsze słowo po nadawcy to lista odbiorców
+            parts = content.strip().split()
+            if len(parts) >= 2:
+                recipients = parts[:2]  # Pierwsze dwa słowa to odbiorcy
+                participants = sorted([sender] + recipients)
+                return tuple(participants) == self.chat_key
 
         return False
 
