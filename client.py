@@ -131,6 +131,7 @@ class UserListWindow(QWidget):
         super().__init__()
         self.client = client
         self.current_user = current_user
+        self.chat_windows = {}
         self.init_ui()
         self.client.user_list_updated.connect(self.update_user_list)
 
@@ -164,9 +165,13 @@ class UserListWindow(QWidget):
     def start_chat(self):
         selected_users = [item.text() for item in self.user_list_display.selectedItems()]
         if selected_users:
-            self.chat_window = ChatWindow(self.client, selected_users)
-            self.chat_window.show()
-            self.close()
+            chat_key = tuple(sorted(selected_users))  # Unique key for chat windows
+            if chat_key not in self.chat_windows:
+                chat_window = ChatWindow(self.client, selected_users)
+                self.chat_windows[chat_key] = chat_window
+                chat_window.show()
+            else:
+                self.chat_windows[chat_key].activateWindow()
 
     def update_user_list(self, user_list):
         """Update the list of online users, excluding the current user."""
@@ -183,7 +188,7 @@ class UserListWindow(QWidget):
         selected_user = self.user_list_display.currentItem().text()
         self.chat_window = ChatWindow(self.client, selected_user)
         self.chat_window.show()
-        self.close()  # Close the user list window
+        #self.close()  # Close the user list window
 
     def back_to_login(self):
         self.client.close()

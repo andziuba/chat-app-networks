@@ -123,15 +123,20 @@ void* handle_client(void* client_socket) {
 
         while ((n = recv(socket, buffer, sizeof(buffer), 0)) > 0) {
             buffer[n] = '\0';
-            char recipient[50], message[MESSAGE_SIZE];
+            char recipient1[50], recipient2[50], message[MESSAGE_SIZE];
             
             if (strcmp(buffer, "/list") == 0) {
                 broadcast_user_list();
-            } else if (sscanf(buffer, "/msg %199[^ ] %199[^\n]", recipients, message) == 2) {
+            } else if (sscanf(buffer, "/msg %s %s %[^\n]", recipient1, recipient2, message) == 3) {
                 char full_message[MESSAGE_SIZE];
                 snprintf(full_message, sizeof(full_message), "%s: %s", username, message);
-                send_message_to_users(recipients, full_message);
-            } else {
+                send_message_to_users(recipient1, full_message);
+                send_message_to_users(recipient2, full_message);
+            } else if (sscanf(buffer, "/msg %s %[^\n]", recipient1, message) == 2) {
+                char full_message[MESSAGE_SIZE];
+                snprintf(full_message, sizeof(full_message), "%s: %s", username, message);
+                send_message_to_users(recipient1, full_message);
+            }  else {
                 char formatted_message[MESSAGE_SIZE];
                 snprintf(formatted_message, sizeof(formatted_message), "%s: %s", username, buffer);
                 broadcast_message(formatted_message, socket);
