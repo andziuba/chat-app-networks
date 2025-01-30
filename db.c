@@ -21,7 +21,7 @@ void init_db() {
 int register_user(const char *username, const char *password) {
     sqlite3_stmt *stmt;
     
-    // Step 1: Check if the username already exists
+    // Sprawdz czy uzytkownik o podanej nazwie juz istnieje
     const char *sql_check = "SELECT id FROM users WHERE username = ?;";
     int rc = sqlite3_prepare_v2(db, sql_check, -1, &stmt, NULL);
     if (rc != SQLITE_OK) {
@@ -33,14 +33,14 @@ int register_user(const char *username, const char *password) {
     rc = sqlite3_step(stmt);
 
     if (rc == SQLITE_ROW) {
-        // Username already exists
+        // Uzytkownik o podanej nazwie juz istnieje
         printf("Error: Username '%s' is already taken.\n", username);
         sqlite3_finalize(stmt);
-        return -1; // User already exists
+        return -1;
     }
-    sqlite3_finalize(stmt); // Finalize the statement if the username doesn't exist
+    sqlite3_finalize(stmt);
 
-    // Step 2: Proceed to register the new user
+    // Rejestracja uzytkownika
     const char *sql_insert = "INSERT INTO users (username, password) VALUES (?, ?);";
     rc = sqlite3_prepare_v2(db, sql_insert, -1, &stmt, NULL);
     if (rc != SQLITE_OK) {
@@ -56,13 +56,12 @@ int register_user(const char *username, const char *password) {
 
     if (rc == SQLITE_DONE) {
         printf("User registered successfully.\n");
-        return 0; // Registration successful
+        return 0;
     } else {
         printf("Error: User registration failed.\n");
-        return -1; // Registration failed
+        return -1;
     }
 }
-
 
 int login_user(const char *username, const char *password) {
     sqlite3_stmt *stmt;

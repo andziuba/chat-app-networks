@@ -7,8 +7,8 @@
 #include <arpa/inet.h>
 #include <netinet/in.h>
 #include <pthread.h>
-#include "db.h"
 #include <stdbool.h>
+#include "db.h"
 
 #define MESSAGE_SIZE 1024
 #define MAX_CLIENTS 10
@@ -22,8 +22,10 @@ Client clients[MAX_CLIENTS];
 int client_count = 0;
 pthread_mutex_t clients_mutex = PTHREAD_MUTEX_INITIALIZER;
 
+// Funckja wysylajaca liste aktualnie zalogowanych uzytkownikow do wszystkich klientow
 void broadcast_user_list() {
     char user_list[MESSAGE_SIZE] = "Users online: ";
+
     pthread_mutex_lock(&clients_mutex);
 
     for (int i = 0; i < client_count; i++) {
@@ -42,18 +44,7 @@ void broadcast_user_list() {
     pthread_mutex_unlock(&clients_mutex);
 }
 
-void broadcast_message(const char *message, int sender_socket) {
-    pthread_mutex_lock(&clients_mutex);
-    for (int i = 0; i < client_count; i++) {
-        if (clients[i].socket != sender_socket) {
-            if (send(clients[i].socket, message, strlen(message), 0) < 0) {
-                perror("Failed to send message");
-            }
-        }
-    }
-    pthread_mutex_unlock(&clients_mutex);
-}
-
+// Funckja wysylajaca wiadomosc do okreslonych uzytkownikow
 void send_message_to_users(char *usernames, const char *message) {
     pthread_mutex_lock(&clients_mutex);
     char *user = strtok(usernames, " ");
@@ -68,6 +59,7 @@ void send_message_to_users(char *usernames, const char *message) {
     pthread_mutex_unlock(&clients_mutex);
 }
 
+// Autentykacja klienta (rejestracja lub logowanie)
 bool authenticate_client(int client_socket, char *action, char *username, char *password) {
     if (strcmp(action, "register") == 0) {
         return register_user(username, password) == 0; 
@@ -77,14 +69,15 @@ bool authenticate_client(int client_socket, char *action, char *username, char *
     return false;
 }
 
+// Funkcja obslugujaca klienta
 void* handle_client(void* client_socket) {
     int socket = *(int*)client_socket;
     char buffer[MESSAGE_SIZE];
     char action[10], username[50], password[50];
     int n;
     
+    // Petla autentykacji
     while (1) {
-        //char action[10], username[50], password[50];
         bzero(action, sizeof(action));
         n = recv(socket, action, sizeof(action) - 1, 0);
         if (n <= 0) break;
@@ -108,57 +101,57 @@ void* handle_client(void* client_socket) {
         }
     }
     
-    //if (authenticate_client(socket, action, username, password)) {
-        send(socket, "Authentication successful", 25, 0);
-        pthread_mutex_lock(&clients_mutex);
-        clients[client_count].socket = socket;
-        clients[client_count].username = strdup(username);
-        client_count++;
-        pthread_mutex_unlock(&clients_mutex);
+    // Dodanie uzytkownika do listy zalogowanych po poprawnej autentykacji
+    send(socket, "Authentication successful", 25, 0);
+    pthread_mutex_lock(&clients_mutex);
+    clients[client_count].socket = socket;
+    clients[client_count].username = strdup(username);
+    client_count++;
+    pthread_mutex_unlock(&clients_mutex);
 
-        sleep(1);
-        broadcast_user_list();
+    sleep(1);
+    broadcast_user_list();  // rozsylanie listy zalogowanych uzytkownikow
 
-        while ((n = recv(socket, buffer, sizeof(buffer), 0)) > 0) {
-            buffer[n] = '\0';
-            char recipient1[50], recipient2[50], message[MESSAGE_SIZE];
+    // petla obslugujacja komunikacje z klientem
+    while ((n = recv(socket, buffer, sizeof(buffer), 0)) > 0) {
+        buffer[n] = '\0';
+        char recipient1[50], recipient2[50], message[MESSAGE_SIZE];
             
-            if (strcmp(buffer, "/logout") == 0) {
-                break;
-            } else if (strcmp(buffer, "/list") == 0) {
-                broadcast_user_list();
-            } else if (sscanf(buffer, "/msg %s %s %[^\n]", recipient1, recipient2, message) == 3) {
-                char full_message[MESSAGE_SIZE];
-                snprintf(full_message, sizeof(full_message), "%s: %s", username, message);
-                send_message_to_users(recipient1, full_message);
-                send_message_to_users(recipient2, full_message);
-            } else if (sscanf(buffer, "/msg %s %[^\n]", recipient1, message) == 2) {
-                char full_message[MESSAGE_SIZE];
-                snprintf(full_message, sizeof(full_message), "%s: %s", username, message);
-                send_message_to_users(recipient1, full_message);
-            }  else {
-                char formatted_message[MESSAGE_SIZE];
-                snprintf(formatted_message, sizeof(formatted_message), "%s: %s", username, buffer);
-                broadcast_message(formatted_message, socket);
-            }
+        if (strcmp(buffer, "/logout") == 0) {  // odebranie zadania o wylogowanie
+            break;
+        } else if (strcmp(buffer, "/list") == 0) {  // odebranie zadania o liste zalogowanych uzytkownikow
+            broadcast_user_list();
+        } else if (sscanf(buffer, "/msg %s %s %[^\n]", recipient1, recipient2, message) == 3) {
+            char full_message[MESSAGE_SIZE];
+            snprintf(full_message, sizeof(full_message), "%s: %s", username, message);
+            send_message_to_users(recipient1, full_message);
+            send_message_to_users(recipient2, full_message);
+        } else if (sscanf(buffer, "/msg %s %[^\n]", recipient1, message) == 2) {
+            char full_message[MESSAGE_SIZE];
+            snprintf(full_message, sizeof(full_message), "%s: %s", username, message);
+            send_message_to_users(recipient1, full_message);
         }
+    }
 
-        pthread_mutex_lock(&clients_mutex);
-        for (int i = 0; i < client_count; i++) {
-            if (clients[i].socket == socket) {
-                free(clients[i].username);
-                clients[i] = clients[--client_count];
-                break;
-            }
+    // Usuniecie uzytkownika z listy zalogowanych po wylogowaniu
+    pthread_mutex_lock(&clients_mutex);
+
+    for (int i = 0; i < client_count; i++) {
+        if (clients[i].socket == socket) {
+            free(clients[i].username);
+            clients[i] = clients[--client_count];
+            break;
         }
-        pthread_mutex_unlock(&clients_mutex);
+    }
 
-        broadcast_user_list();
-        close(socket);
-    //} else {
-        send(socket, "Authentication failed", 21, 0);
-        close(socket);
-    //}
+    pthread_mutex_unlock(&clients_mutex);
+
+    // Rozeslanie zaktualizowanej listy zalogowanych uzytkownikow
+    broadcast_user_list();
+    close(socket);
+
+    send(socket, "Authentication failed", 21, 0);
+    close(socket);
     
     return NULL;
 }
@@ -170,8 +163,9 @@ int main() {
     socklen_t addr_size;
     pthread_t thread_id;
 
-    init_db();
+    init_db();  // Inicjalizacja bazy danych
 
+    // Tworzenie gniazda serwera
     server_socket = socket(AF_INET, SOCK_STREAM, 0);
     server_addr.sin_family = AF_INET;
     server_addr.sin_addr.s_addr = htonl(INADDR_ANY);
@@ -181,6 +175,7 @@ int main() {
 
     printf("Listening...\n");
 
+    // Petla akceptujaca nowych klientow
     while (1) {
         addr_size = sizeof server_storage;
         new_socket = accept(server_socket, (struct sockaddr*)&server_storage, &addr_size);
@@ -188,7 +183,7 @@ int main() {
             perror("Error accepting connection");
             continue;
         }
-        pthread_create(&thread_id, NULL, handle_client, &new_socket);
+        pthread_create(&thread_id, NULL, handle_client, &new_socket);  // Tworzenie nowego watku dla klienta
         pthread_detach(thread_id);
     }
 

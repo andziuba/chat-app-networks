@@ -5,54 +5,57 @@ import time
 from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QTextEdit, QLineEdit, QPushButton, QLabel, QListWidget
 from PyQt5.QtCore import pyqtSignal, QObject
 
+# Klasa obslugujaca komunikacje z serwerem
 class ChatClient(QObject):
-    message_received = pyqtSignal(str)
-    user_list_updated = pyqtSignal(str)
+    message_received = pyqtSignal(str)  # Sygnal emitowany przy otrzymaniu wiadomosci
+    user_list_updated = pyqtSignal(str)  # Sygnal emitowany przy aktualizacji listy uzytkownikow
 
     def __init__(self, host='127.0.0.1', port=1100):
         super().__init__()
         self.client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.client_socket.connect((host, port))
         self.running = True
-        self.current_user = None  # Track the currently logged-in user
+        self.current_user = None
         threading.Thread(target=self.receive_messages, daemon=True).start()
 
+    # Logowanie / rejestracja uzytkownika
     def authenticate(self, action, username, password):
         print(f"Sending action: {action}")
-        self.send_message(action)  # Send action (login/register)
+        self.send_message(action) 
         time.sleep(0.1)
 
         print(f"Sending username: {username}")
-        self.send_message(username)  # Send username
+        self.send_message(username)
         time.sleep(0.1)
 
         print(f"Sending password: {password}")
-        self.send_message(password)  # Send password
+        self.send_message(password)
 
-        # Receiving response from server
         response = self.client_socket.recv(1024).decode('utf-8')
         if "Authentication successful" in response:
             self.current_user = username
-            return True  # Authentication successful
+            return True
         else:
             print("Authentication failed. Please try again.")
             self.message_received.emit("Authentication failed. Please try again.")  # Emit signal for failure
             return False
 
+    # Wysylanie wiadomosci do serwera
     def send_message(self, message):
         if message:
             try:
                 self.client_socket.sendall(message.encode('utf-8'))
             except BrokenPipeError:
                 print("Connection closed by the server. Unable to send message.")
-                self.running = False  # Stop receiving messages if connection is lost
+                self.running = False
 
+    # Odbieranie wiadomosci od serwera
     def receive_messages(self):
         while self.running:
             try:
-                self.client_socket.settimeout(5)  # Set a timeout to prevent blocking
+                self.client_socket.settimeout(5)  # Unikanie blokowania
                 message = self.client_socket.recv(1024).decode('utf-8')
-                if not message:  # Server closed the connection
+                if not message:
                     print("Server closed the connection.")
                     self.running = False
                     break
@@ -61,7 +64,7 @@ class ChatClient(QObject):
                 else:
                     self.message_received.emit(message)
             except socket.timeout:
-                continue  # Continue the loop if no data is received
+                continue
             except Exception as e:
                 print(f"Error receiving message: {e}")
                 self.running = False
@@ -71,6 +74,7 @@ class ChatClient(QObject):
         self.running = False
         self.client_socket.close()
 
+# Klasa okna logowania / rejestracji
 class LoginRegisterWindow(QWidget):
     def __init__(self):
         super().__init__()
@@ -94,7 +98,7 @@ class LoginRegisterWindow(QWidget):
         layout.addWidget(self.password_label)
 
         self.password_input = QLineEdit()
-        self.password_input.setEchoMode(QLineEdit.Password)  # Mask password input
+        self.password_input.setEchoMode(QLineEdit.Password)
         layout.addWidget(self.password_input)
 
         self.login_button = QPushButton("Login")
@@ -126,16 +130,17 @@ class LoginRegisterWindow(QWidget):
     def display_message(self, message):
         self.message_display.append(message)
 
-        if "successful" in message:  # Assuming server sends "Login successful" or "Registration successful"
+        if "successful" in message:
             self.open_user_list_window()
 
     def open_user_list_window(self):
-        self.user_list_window = UserListWindow(self.client, self.client.current_user)  # Pass the current user
+        self.user_list_window = UserListWindow(self.client, self.client.current_user)
         self.client.message_received.connect(self.user_list_window.display_message)
-        self.client.user_list_updated.connect(self.user_list_window.update_user_list)  # Update user list in user list window
+        self.client.user_list_updated.connect(self.user_list_window.update_user_list)
         self.user_list_window.show()
-        self.close()  # Close the login window
+        self.close()
 
+# Klasa okna listy uzytkownikow
 class UserListWindow(QWidget):
     def __init__(self, client, current_user):
         super().__init__()
@@ -151,11 +156,9 @@ class UserListWindow(QWidget):
 
         self.layout = QVBoxLayout()
 
-        # Display "Logged in as: username"
         self.logged_in_label = QLabel(f"Logged in as: {self.current_user}")
         self.layout.addWidget(self.logged_in_label)
 
-        # User list display (for online users)
         self.user_list_display = QListWidget()
         self.user_list_display.setSelectionMode(QListWidget.MultiSelection)
         self.layout.addWidget(QLabel("Users Online:"))
@@ -165,7 +168,6 @@ class UserListWindow(QWidget):
         self.start_chat_button.clicked.connect(self.start_chat)
         self.layout.addWidget(self.start_chat_button)
 
-        # Back to the login window button
         self.back_button = QPushButton("Logout")
         self.back_button.clicked.connect(self.back_to_login)
         self.layout.addWidget(self.back_button)
@@ -177,21 +179,20 @@ class UserListWindow(QWidget):
         if selected_users:
             chat_key = tuple(sorted([self.current_user] + selected_users))
             if chat_key not in self.chat_windows:
-                chat_window = ChatWindow(self.client, selected_users, self.current_user)  # Pass current_user
-                chat_window.chat_closed.connect(self.remove_chat_window)  # Connect the signal
+                chat_window = ChatWindow(self.client, selected_users, self.current_user)
+                chat_window.chat_closed.connect(self.remove_chat_window)
                 self.chat_windows[chat_key] = chat_window
                 chat_window.show()
             else:
                 self.chat_windows[chat_key].activateWindow()
 
     def update_user_list(self, user_list):
-        """Update the list of online users, excluding the current user."""
         users = user_list.replace("Users online: ", "").split(", ")
         users = [user.strip() for user in users]
 
         self.user_list_display.clear()
 
-        # Filter out the current user from the list
+        # Filtowanie listy uzytkownikow (bez obecnego klienta)
         filtered_users = [user for user in users if user != self.current_user]
         self.user_list_display.addItems(filtered_users)
 
@@ -204,52 +205,48 @@ class UserListWindow(QWidget):
         self.chat_windows.clear()
         self.login_window = LoginRegisterWindow()
         self.login_window.show()
-        self.close()  # Close the user list window
+        self.close()
 
     def display_message(self, message):
-        """Display general messages (like login success or errors)."""
-        pass  # This is handled in other windows
+        pass
 
     def remove_chat_window(self, chat_key):
-        """Remove the chat window from the chat_windows dictionary."""
         if chat_key in self.chat_windows:
             del self.chat_windows[chat_key]
 
+# Klasa okna czatu
 class ChatWindow(QWidget):
-    chat_closed = pyqtSignal(tuple)  # Signal emitted when the chat is closed
+    chat_closed = pyqtSignal(tuple)
 
     def __init__(self, client, selected_users, current_user):
         super().__init__()
         self.client = client
-        self.selected_users = selected_users  # Use 'selected_users' instead of 'selected_user'
+        self.selected_users = selected_users
         self.current_user = current_user
         self.chat_key = self.generate_chat_key(selected_users)
         self.init_ui()
 
         self.client.message_received.connect(self.display_message)
 
+    # Funkcja generujaca klucz czatu (unikalny dla rozmowy)
     def generate_chat_key(self, selected_users):
-        """Generate a unique key for the chat based on the participants."""
         participants = sorted([self.current_user] + selected_users)
         return tuple(participants)
 
     def init_ui(self):
-        self.setWindowTitle(f"Chat with {', '.join(self.selected_users)}")  # Using 'self.selected_users'
+        self.setWindowTitle(f"Chat with {', '.join(self.selected_users)}")
         self.setGeometry(100, 100, 400, 300)
 
         self.layout = QVBoxLayout()
 
-        # Message display
         self.text_display = QTextEdit()
         self.text_display.setReadOnly(True)
         self.layout.addWidget(self.text_display)
 
-        # Message input field
         self.entry_message = QLineEdit()
         self.layout.addWidget(QLabel("Message:"))
         self.layout.addWidget(self.entry_message)
 
-        # Send button
         self.send_button = QPushButton("Send")
         self.send_button.clicked.connect(self.send_message)
         self.layout.addWidget(self.send_button)
@@ -258,38 +255,33 @@ class ChatWindow(QWidget):
 
     def send_message(self):
         message = self.entry_message.text()
-        recipients = " ".join(self.selected_users)  # Use 'self.selected_users'
+        recipients = " ".join(self.selected_users)
         self.client.send_message(f"/msg {recipients} {message}")
         self.text_display.append(f"You: {message}")
         self.entry_message.clear()
 
     def is_message_for_this_chat(self, message):
-        """Checks if the message is intended for this chat."""
         if ":" in message:
             sender, content = message.split(":", 1)
             sender = sender.strip()
 
             if "to" in content:
-                # Handle messages in the format "sender to recipient1 recipient2: message"
                 recipients_part = content.split("to", 1)[1].split(":", 1)[0].strip()
                 recipients = recipients_part.split()
             else:
-                # Handle messages without "to" (e.g., private messages)
                 recipients = [self.current_user]
 
-            # Create chat key and check if it matches this window
             participants = sorted([sender] + recipients)
             return tuple(participants) == self.chat_key
 
         return False
 
     def display_message(self, message):
-        """Display only messages intended for this chat window."""
         if self.is_message_for_this_chat(message):
             self.text_display.append(message)
 
     def closeEvent(self, event):
-        self.chat_closed.emit(self.chat_key)  # Emit signal with the chat key
+        self.chat_closed.emit(self.chat_key)
         event.accept()
 
 if __name__ == "__main__":
