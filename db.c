@@ -20,9 +20,29 @@ void init_db() {
 
 int register_user(const char *username, const char *password) {
     sqlite3_stmt *stmt;
-    const char *sql = "INSERT INTO users (username, password) VALUES (?, ?);";
+    
+    // Step 1: Check if the username already exists
+    const char *sql_check = "SELECT id FROM users WHERE username = ?;";
+    int rc = sqlite3_prepare_v2(db, sql_check, -1, &stmt, NULL);
+    if (rc != SQLITE_OK) {
+        fprintf(stderr, "Failed to prepare statement: %s\n", sqlite3_errmsg(db));
+        return -1;
+    }
 
-    int rc = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
+    sqlite3_bind_text(stmt, 1, username, -1, SQLITE_STATIC);
+    rc = sqlite3_step(stmt);
+
+    if (rc == SQLITE_ROW) {
+        // Username already exists
+        printf("Error: Username '%s' is already taken.\n", username);
+        sqlite3_finalize(stmt);
+        return -1; // User already exists
+    }
+    sqlite3_finalize(stmt); // Finalize the statement if the username doesn't exist
+
+    // Step 2: Proceed to register the new user
+    const char *sql_insert = "INSERT INTO users (username, password) VALUES (?, ?);";
+    rc = sqlite3_prepare_v2(db, sql_insert, -1, &stmt, NULL);
     if (rc != SQLITE_OK) {
         fprintf(stderr, "Failed to prepare statement: %s\n", sqlite3_errmsg(db));
         return -1;
@@ -36,12 +56,13 @@ int register_user(const char *username, const char *password) {
 
     if (rc == SQLITE_DONE) {
         printf("User registered successfully.\n");
-        return 0;
+        return 0; // Registration successful
     } else {
         printf("Error: User registration failed.\n");
-        return -1;
+        return -1; // Registration failed
     }
 }
+
 
 int login_user(const char *username, const char *password) {
     sqlite3_stmt *stmt;
