@@ -31,12 +31,13 @@ class ChatClient(QObject):
 
         # Receiving response from server
         response = self.client_socket.recv(1024).decode('utf-8')
-        if "Authentication failed" in response:
+        if "Authentication successful" in response:
+            self.current_user = username
+            return True  # Authentication successful
+        else:
             print("Authentication failed. Please try again.")
             self.message_received.emit("Authentication failed. Please try again.")  # Emit signal for failure
-        else:
-            self.current_user = username
-            self.message_received.emit("Authentication successful!")  # Inform success
+            return False
 
     def send_message(self, message):
         if message:
@@ -105,12 +106,14 @@ class LoginRegisterWindow(QWidget):
     def login(self):
         username = self.username_input.text()
         password = self.password_input.text()
-        self.client.authenticate("login", username, password)
+        if self.client.authenticate("login", username, password):
+            self.open_user_list_window()
 
     def register(self):
         username = self.username_input.text()
         password = self.password_input.text()
-        self.client.authenticate("register", username, password)
+        if self.client.authenticate("register", username, password):
+            self.open_user_list_window()
 
     def display_message(self, message):
         self.message_display.append(message)
