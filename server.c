@@ -82,35 +82,33 @@ void* handle_client(void* client_socket) {
     char buffer[MESSAGE_SIZE];
     char action[10], username[50], password[50];
     int n;
-
-    bzero(action, sizeof(action));
-    n = recv(socket, action, sizeof(action) - 1, 0);
-    if (n <= 0) {
-        perror("Error receiving action");
-        close(socket);
-        return NULL;
-    }
-    action[n] = '\0';
     
-    bzero(username, sizeof(username));
-    n = recv(socket, username, sizeof(username) - 1, 0);
-    if (n <= 0) {
-        perror("Error receiving username");
-        close(socket);
-        return NULL;
-    }
-    username[n] = '\0';
+    while (1) {
+        //char action[10], username[50], password[50];
+        bzero(action, sizeof(action));
+        n = recv(socket, action, sizeof(action) - 1, 0);
+        if (n <= 0) break;
+        action[n] = '\0';
 
-    bzero(password, sizeof(password));
-    n = recv(socket, password, sizeof(password) - 1, 0);
-    if (n <= 0) {
-        perror("Error receiving password");
-        close(socket);
-        return NULL;
+        bzero(username, sizeof(username));
+        n = recv(socket, username, sizeof(username) - 1, 0);
+        if (n <= 0) break;
+        username[n] = '\0';
+
+        bzero(password, sizeof(password));
+        n = recv(socket, password, sizeof(password) - 1, 0);
+        if (n <= 0) break;
+        password[n] = '\0';
+
+        if (authenticate_client(socket, action, username, password)) {
+            send(socket, "Authentication successful", 25, 0);
+            break;
+        } else {
+            send(socket, "Authentication failed", 21, 0);
+        }
     }
-    password[n] = '\0';
     
-    if (authenticate_client(socket, action, username, password)) {
+    //if (authenticate_client(socket, action, username, password)) {
         send(socket, "Authentication successful", 25, 0);
         pthread_mutex_lock(&clients_mutex);
         clients[client_count].socket = socket;
@@ -157,10 +155,10 @@ void* handle_client(void* client_socket) {
 
         broadcast_user_list();
         close(socket);
-    } else {
+    //} else {
         send(socket, "Authentication failed", 21, 0);
         close(socket);
-    }
+    //}
     
     return NULL;
 }
