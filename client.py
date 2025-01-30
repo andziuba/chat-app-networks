@@ -25,7 +25,7 @@ class ChatClient(QObject):
         print(f"Sending username: {username}")
         self.send_message(username)  # Send username
         time.sleep(0.1)
-        
+
         print(f"Sending password: {password}")
         self.send_message(password)  # Send password
 
@@ -37,7 +37,6 @@ class ChatClient(QObject):
         else:
             self.current_user = username
             self.message_received.emit("Authentication successful!")  # Inform success
-           
 
     def send_message(self, message):
         if message:
@@ -168,6 +167,7 @@ class UserListWindow(QWidget):
             chat_key = tuple(sorted([self.current_user] + selected_users))
             if chat_key not in self.chat_windows:
                 chat_window = ChatWindow(self.client, selected_users, self.current_user)  # Pass current_user
+                chat_window.chat_closed.connect(self.remove_chat_window)  # Connect the signal
                 self.chat_windows[chat_key] = chat_window
                 chat_window.show()
             else:
@@ -177,22 +177,20 @@ class UserListWindow(QWidget):
         """Update the list of online users, excluding the current user."""
         users = user_list.replace("Users online: ", "").split(", ")
         users = [user.strip() for user in users]
-        
+
         self.user_list_display.clear()
-        
+
         # Filter out the current user from the list
         filtered_users = [user for user in users if user != self.current_user]
         self.user_list_display.addItems(filtered_users)
 
-    def on_user_selected(self):
-        selected_user = self.user_list_display.currentItem().text()
-        self.chat_window = ChatWindow(self.client, selected_user)
-        self.chat_window.show()
-        #self.close()  # Close the user list window
-
     def back_to_login(self):
         self.client.send_message("/logout")
+        for chat_window in self.chat_windows.values():
+            chat_window.close()
         self.client.close()
+
+        self.chat_windows.clear()
         self.login_window = LoginRegisterWindow()
         self.login_window.show()
         self.close()  # Close the user list window
@@ -201,7 +199,14 @@ class UserListWindow(QWidget):
         """Display general messages (like login success or errors)."""
         pass  # This is handled in other windows
 
+    def remove_chat_window(self, chat_key):
+        """Remove the chat window from the chat_windows dictionary."""
+        if chat_key in self.chat_windows:
+            del self.chat_windows[chat_key]
+
 class ChatWindow(QWidget):
+    chat_closed = pyqtSignal(tuple)  # Signal emitted when the chat is closed
+
     def __init__(self, client, selected_users, current_user):
         super().__init__()
         self.client = client
@@ -248,33 +253,32 @@ class ChatWindow(QWidget):
         self.entry_message.clear()
 
     def is_message_for_this_chat(self, message):
-        """Sprawdza, czy wiadomość jest przeznaczona dla tego czatu."""
+        """Checks if the message is intended for this chat."""
         if ":" in message:
             sender, content = message.split(":", 1)
             sender = sender.strip()
 
             if "to" in content:
-                # Obsługa wiadomości w formacie "sender to recipient1 recipient2: message"
+                # Handle messages in the format "sender to recipient1 recipient2: message"
                 recipients_part = content.split("to", 1)[1].split(":", 1)[0].strip()
                 recipients = recipients_part.split()
             else:
-                # Obsługa wiadomości bez "to" (np. prywatne wiadomości)
+                # Handle messages without "to" (e.g., private messages)
                 recipients = [self.current_user]
 
-            # Tworzymy klucz czatu i sprawdzamy, czy pasuje do tego okna
+            # Create chat key and check if it matches this window
             participants = sorted([sender] + recipients)
             return tuple(participants) == self.chat_key
 
         return False
 
     def display_message(self, message):
-        """Wyświetla tylko wiadomości przeznaczone dla tego okna czatu."""
+        """Display only messages intended for this chat window."""
         if self.is_message_for_this_chat(message):
             self.text_display.append(message)
 
-
     def closeEvent(self, event):
-        self.client.close()
+        self.chat_closed.emit(self.chat_key)  # Emit signal with the chat key
         event.accept()
 
 if __name__ == "__main__":
