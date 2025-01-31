@@ -62,6 +62,7 @@ class ChatClient(QObject):
                 if message.startswith("Users online:"):
                     self.user_list_updated.emit(message)
                 else:
+                    print(message)
                     self.message_received.emit(message)
             except socket.timeout:
                 continue
@@ -135,7 +136,6 @@ class LoginRegisterWindow(QWidget):
 
     def open_user_list_window(self):
         self.user_list_window = UserListWindow(self.client, self.client.current_user)
-        self.client.message_received.connect(self.user_list_window.display_message)
         self.client.user_list_updated.connect(self.user_list_window.update_user_list)
         self.user_list_window.show()
         self.close()
@@ -182,6 +182,7 @@ class UserListWindow(QWidget):
                 chat_window = ChatWindow(self.client, selected_users, self.current_user)
                 chat_window.chat_closed.connect(self.remove_chat_window)
                 self.chat_windows[chat_key] = chat_window
+                self.client.message_received.connect(chat_window.display_message)  # Przypisanie sygnału
                 chat_window.show()
             else:
                 self.chat_windows[chat_key].activateWindow()
@@ -228,7 +229,6 @@ class ChatWindow(QWidget):
 
         self.client.message_received.connect(self.display_message)
 
-    # Funkcja generujaca klucz czatu (unikalny dla rozmowy)
     def generate_chat_key(self, selected_users):
         participants = sorted([self.current_user] + selected_users)
         return tuple(participants)
@@ -255,7 +255,7 @@ class ChatWindow(QWidget):
 
     def send_message(self):
         message = self.entry_message.text()
-        recipients = " ".join(self.selected_users)
+        recipients = " ".join(f"@{user}" for user in self.selected_users)
         self.client.send_message(f"/msg {recipients} {message}")
         self.text_display.append(f"You: {message}")
         self.entry_message.clear()
@@ -265,18 +265,16 @@ class ChatWindow(QWidget):
             sender, content = message.split(":", 1)
             sender = sender.strip()
 
-            # Zakładamy, że pierwsze słowo po nadawcy to lista odbiorców
-            parts = content.strip().split()
-            if len(parts) >= 2:
-                recipients = parts[:2]  # Pierwsze dwa słowa to odbiorcy
-                participants = sorted([sender] + recipients)
-                return tuple(participants) == self.chat_key
+            # Sprawdź, czy wiadomość jest skierowana do uczestników tego czatu
+            participants = sorted([sender] + self.selected_users)
+            return tuple(participants) == self.chat_key
 
         return False
 
     def display_message(self, message):
-        if self.is_message_for_this_chat(message):
-            self.text_display.append(message)
+        #if self.is_message_for_this_chat(message):
+        print(f"Received message in ChatWindow: {message}")  # Debug print
+        self.text_display.append(message)
 
     def closeEvent(self, event):
         self.chat_closed.emit(self.chat_key)
