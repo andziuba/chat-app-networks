@@ -182,8 +182,7 @@ class UserListWindow(QWidget):
                 chat_window = ChatWindow(self.client, selected_users, self.current_user)
                 chat_window.chat_closed.connect(self.remove_chat_window)
                 self.chat_windows[chat_key] = chat_window
-                self.client.message_received.connect(chat_window.display_message)  # Przypisanie sygnału
-                chat_window.show()
+                chat_window.show()  # Signal connection is now handled in ChatWindow
             else:
                 self.chat_windows[chat_key].activateWindow()
 
@@ -227,6 +226,7 @@ class ChatWindow(QWidget):
         self.chat_key = self.generate_chat_key(selected_users)
         self.init_ui()
 
+        # Connect the signal here, inside the ChatWindow class
         self.client.message_received.connect(self.display_message)
 
     def generate_chat_key(self, selected_users):
@@ -265,7 +265,7 @@ class ChatWindow(QWidget):
             sender, content = message.split(":", 1)
             sender = sender.strip()
 
-        # Participants include the sender, current user, and selected users
+            # Participants include the sender, current user, and selected users
             participants = sorted(list(set([sender, self.current_user] + self.selected_users)))
             print(f"Participants for this chat: {participants}")  # Debug print
             return tuple(participants) == self.chat_key
