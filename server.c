@@ -130,41 +130,42 @@ void* handle_client(void* client_socket) {
             broadcast_user_list();
         } else if (strncmp(buffer, "/msg", 4) == 0) {
             printf("rec1: %s \n", buffer);
-    // Parsowanie wiadomości
-    char *token = strtok(buffer + 5, " "); // Pomijamy "/msg " i dzielimy na tokeny
-    int recipient_count = 0;
-    char recipients[2][50]; // Maksymalnie dwóch odbiorców
-    char message[MESSAGE_SIZE] = "";
+            
+            // Parsowanie wiadomości
+            char *token = strtok(buffer + 5, " ");  // pomijamy "/msg " i dzielimy na tokeny
+            int recipient_count = 0;
+            char recipients[2][50];  // maksymalnie dwoch odbiorcow
+            char message[MESSAGE_SIZE] = "";
 
-    while (token != NULL) {
-        printf("rec2: %s \n", buffer);
-        if (token[0] == '@' && recipient_count < 2) {
-            printf("rec4: %s \n", buffer);
-            // Usuwamy '@' i zapisujemy nazwę użytkownika
-            strncpy(recipients[recipient_count], token + 1, sizeof(recipients[recipient_count]) - 1);
-            recipient_count++;
-        } else {
-            // Reszta to treść wiadomości
-            strncat(message, token, sizeof(message) - strlen(message) - 1);
-            strncat(message, " ", sizeof(message) - strlen(message) - 1);
+            while (token != NULL) {
+                printf("rec2: %s \n", buffer);
+                if (token[0] == '@' && recipient_count < 2) {
+                    printf("rec4: %s \n", buffer);
+                    // Usuwamy '@' i zapisujemy nazwę uzytkownika
+                    strncpy(recipients[recipient_count], token + 1, sizeof(recipients[recipient_count]) - 1);
+                    recipient_count++;
+                } else {
+                    // Reszta to tresc wiadomości
+                    strncat(message, token, sizeof(message) - strlen(message) - 1);
+                    strncat(message, " ", sizeof(message) - strlen(message) - 1);
+                }
+                token = strtok(NULL, " ");
+            }
+
+            // Usuwamy ostatnia spacje z wiadomosci
+            if (strlen(message) > 0 && message[strlen(message) - 1] == ' ') {
+                message[strlen(message) - 1] = '\0';
+            }
+
+            // Wysylanie wiadomosci do odbiorcow
+            char full_message[MESSAGE_SIZE];
+            snprintf(full_message, sizeof(full_message), "%s: %s", username, message);
+
+            for (int i = 0; i < recipient_count; i++) {
+                printf("rec5: %s \n", buffer);
+                send_message_to_users(recipients[i], full_message);
+            }
         }
-        token = strtok(NULL, " ");
-    }
-
-    // Usuwamy ostatnią spację z wiadomości
-    if (strlen(message) > 0 && message[strlen(message) - 1] == ' ') {
-        message[strlen(message) - 1] = '\0';
-    }
-
-    // Wysyłanie wiadomości do odbiorców
-    char full_message[MESSAGE_SIZE];
-    snprintf(full_message, sizeof(full_message), "%s: %s", username, message);
-
-    for (int i = 0; i < recipient_count; i++) {
-        printf("rec5: %s \n", buffer);
-        send_message_to_users(recipients[i], full_message);
-    }
-}
     }
 
     // Usuniecie uzytkownika z listy zalogowanych po wylogowaniu

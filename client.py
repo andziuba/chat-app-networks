@@ -37,7 +37,7 @@ class ChatClient(QObject):
             return True
         else:
             print("Authentication failed. Please try again.")
-            self.message_received.emit("Authentication failed. Please try again.")  # Emit signal for failure
+            self.message_received.emit("Authentication failed. Please try again.")
             return False
 
     # Wysylanie wiadomosci do serwera
@@ -182,7 +182,7 @@ class UserListWindow(QWidget):
                 chat_window = ChatWindow(self.client, selected_users, self.current_user)
                 chat_window.chat_closed.connect(self.remove_chat_window)
                 self.chat_windows[chat_key] = chat_window
-                chat_window.show()  # Signal connection is now handled in ChatWindow
+                chat_window.show()
             else:
                 self.chat_windows[chat_key].activateWindow()
 
@@ -226,7 +226,6 @@ class ChatWindow(QWidget):
         self.chat_key = self.generate_chat_key(selected_users)
         self.init_ui()
 
-        # Connect the signal here, inside the ChatWindow class
         self.client.message_received.connect(self.display_message)
 
     def generate_chat_key(self, selected_users):
@@ -265,16 +264,15 @@ class ChatWindow(QWidget):
             sender, content = message.split(":", 1)
             sender = sender.strip()
 
-            # Participants include the sender, current user, and selected users
             participants = sorted(list(set([sender, self.current_user] + self.selected_users)))
-            print(f"Participants for this chat: {participants}")  # Debug print
+            print(f"Participants for this chat: {participants}")
             return tuple(participants) == self.chat_key
 
         return False
 
     def display_message(self, message):
         if self.is_message_for_this_chat(message):
-            print(f"Received message in ChatWindow: {message}")  # Debug print
+            print(f"Received message in ChatWindow: {message}")
             self.text_display.append(message)
 
     def closeEvent(self, event):
