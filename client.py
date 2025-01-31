@@ -260,20 +260,39 @@ class ChatWindow(QWidget):
         self.entry_message.clear()
 
     def is_message_for_this_chat(self, message):
-        if ":" in message:
-            sender, content = message.split(":", 1)
-            sender = sender.strip()
+        if "To" in message and ":" in message:
+            recipients_part, rest = message.split(":", 1)
+            recipients_part = recipients_part.strip()
+            rest = rest.strip()
 
-            participants = sorted(list(set([sender, self.current_user] + self.selected_users)))
-            print(f"Participants for this chat: {participants}")
-            return tuple(participants) == self.chat_key
+        # Wyodrębnienie listy odbiorców
+            recipients = recipients_part.replace("To", "").strip().split(", ")
+
+        # Wyodrębnienie nadawcy i treści wiadomości
+            if ":" in rest:
+                sender, content = rest.split(":", 1)
+                sender = sender.strip()
+
+                participants = sorted(list(set([sender, self.current_user] + recipients)))
+
+                return tuple(participants) == self.chat_key
 
         return False
 
     def display_message(self, message):
         if self.is_message_for_this_chat(message):
-            print(f"Received message in ChatWindow: {message}")
-            self.text_display.append(message)
+            if "To" in message and ":" in message:
+                recipients_part, rest = message.split(":", 1)
+                recipients_part = recipients_part.strip()
+                rest = rest.strip()
+
+                if ":" in rest:
+                    sender, content = rest.split(":", 1)
+                    sender = sender.strip()
+                    content = content.strip()
+
+                    # Wyświetlenie wiadomości w formacie "sender: wiadomość"
+                    self.text_display.append(f"{sender}: {content}")
 
     def closeEvent(self, event):
         self.chat_closed.emit(self.chat_key)
