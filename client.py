@@ -265,16 +265,17 @@ class ChatWindow(QWidget):
             sender, content = message.split(":", 1)
             sender = sender.strip()
 
-            # Sprawdź, czy wiadomość jest skierowana do uczestników tego czatu
-            participants = sorted([sender] + self.selected_users)
+        # Participants include the sender, current user, and selected users
+            participants = sorted(list(set([sender, self.current_user] + self.selected_users)))
+            print(f"Participants for this chat: {participants}")  # Debug print
             return tuple(participants) == self.chat_key
 
         return False
 
     def display_message(self, message):
-        #if self.is_message_for_this_chat(message):
-        print(f"Received message in ChatWindow: {message}")  # Debug print
-        self.text_display.append(message)
+        if self.is_message_for_this_chat(message):
+            print(f"Received message in ChatWindow: {message}")  # Debug print
+            self.text_display.append(message)
 
     def closeEvent(self, event):
         self.chat_closed.emit(self.chat_key)
